@@ -1,0 +1,2 @@
+[console_scripts]
+tracklet = disconnecting_framework.core.click_script:cli
