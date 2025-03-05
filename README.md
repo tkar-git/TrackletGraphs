@@ -9,6 +9,9 @@ git clone git@github.com:tkar-git/TrackletGraphs.git
 ```
 
 ## How to use: (work in progress, the following may be subject to changes)
+Install via:    python setup.py sdist    
+                pip install ./dist/disconnecting_framework-0.0.1.tar.gz
+            
 Similar to acorn: tracklet [discon, eval] config_file.yaml
 
 discon: Performs the whole disconnection process with the filters given in the .yaml file (in progress)
