@@ -3,7 +3,7 @@
 #The user can then type "tracklet discon" to run the infer command
 
 import click
-from . import testing, disconnect
+from . import test_stage, graph_construction_stage, disconnect_stage, eval_stage
 
 @click.group()
 def cli():
@@ -12,13 +12,23 @@ def cli():
 
 @cli.command()
 def test():
-    testing.main()
+    test_stage.main()
+
+@cli.command()
+@click.argument("config_file")
+def build(config_file):
+    graph_construction_stage.main(config_file)
 
 @cli.command()
 @click.argument("config_file")
 def discon(config_file):
-    disconnect.main(config_file)
+    disconnect_stage.main(config_file)
 
+
+@cli.command()
+@click.argument("config_file")
+def eval(config_file):
+    eval_stage.main(config_file)
 
 if __name__ == '__main__':
     cli()

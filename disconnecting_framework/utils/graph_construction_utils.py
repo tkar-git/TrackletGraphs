@@ -29,7 +29,7 @@ def update_metagraph(graph):
 
 def flip_edges(graph):
     '''
-    Flips the direction of an edge, if the receiving node is closer to the origin
+    Flips the direction of an edge if the receiving node is closer to the origin
     '''
     assert hasattr(graph, 'edge_index'), 'Edge index does not exist in graph'
     assert hasattr(graph, 'r') or hasattr(graph, 'z'), 'r or z coordinates do not exist in graph'
@@ -47,6 +47,9 @@ def flip_edges(graph):
     graph.edge_index = torch.unique(graph.edge_index, dim=1)  # Remove duplicates
     
     return graph
+
+def remove_edges_in_layer(graph):
+    raise NotImplementedError
 
 def apply_mask_to_graph(graph, mask, mask_type='node'):
     '''
