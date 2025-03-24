@@ -1,0 +1,8 @@
+stage_dir: /home/mue/karres/git/TrackletGraphs/testing_stuff/pyg_files/
+output_dir: /home/mue/karres/git/TrackletGraphs/testing_stuff/pyg_files/
+
+max_workers: 1
+load_only_metagraph: True
+test: True
+#test_path: /home/mue/karres/git/TrackletGraphs/testing_stuff/pyg_files/odd_barrel_p50_full_linegraph.pyg
+test_path: /home/mue/karres/git/TrackletGraphs/testing_stuff/pyg_files/odd_barrel_p50_full_linegraph.h5

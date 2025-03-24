@@ -1,15 +1,14 @@
-import yaml
-import torch
-import glob
-import h5py
-from itertools import chain
-import tqdm
-from tqdm.contrib.concurrent import process_map
-from functools import partial
 
-###
-#NEEDS TO BE TESTED
-###
+import numpy as np
+import torch
+import yaml
+import glob
+import tqdm
+import h5py
+
+from itertools import chain
+from functools import partial
+from tqdm.contrib.concurrent import process_map
 
 def main(config_file):
     print("Entered disconnect stage")
@@ -18,31 +17,38 @@ def main(config_file):
         config = yaml.load(stream, Loader=yaml.FullLoader)
 
     stage_dir = config['stage_dir'] #directory containing the graph pygs
-    output_dir = config['output_dir']
 
-    metagraph_paths = glob.glob(stage_dir + '/*.pyg')
+    paths = glob.glob(stage_dir + '/*.pyg')
     
-    max_workers = config['max_workers', 1]
+    max_workers = config['max_workers']
+
     if max_workers != 1:
         process_map(
             partial(get_all_track_candidates),
-            metagraph_paths,
+            config, paths,
             max_workers=max_workers,
             chunksize=1,
             desc=f"Preprocessing metagraphs",)
+    elif max_workers == 1 and config['test']:
+        get_all_track_candidates(config, config['test_path'])
     else:
-        for metagraph_path in tqdm(metagraph_paths, desc=f'Producing track candidate list'):
-            get_all_track_candidates(metagraph_path)
+        for path in tqdm(paths, desc=f'Producing track candidate list'):
+            get_all_track_candidates(config, path)
 
-def produce_longest_track_candidate(flattened_metagraph):
-    longest_track_candidate = max(flattened_metagraph, key=len)
-    flattened_metagraph = [s for s in flattened_metagraph if s != longest_track_candidate and s.isdisjoint(longest_track_candidate)]
+def get_all_track_candidates(config, path):
+    #Check if metagraph is stored in hdf5 format and load as such, else get from pyg file
+    if config['load_only_metagraph']:
+        metagraph = load_from_hdf5(path)
+    else:
+        metagraph = torch.load(path).metagraph
+        metagraph_path = path.replace('.pyg', '.h5')
+        save_to_hdf5(metagraph, metagraph_path)
 
-    return longest_track_candidate, flattened_metagraph
-
-def get_all_track_candidates(metagraph_path):
-    metagraph = load_metagraph_from_hdf5(metagraph_path)
-    flattened_metagraph = list(chain(*metagraph))
+    #If metagraph is structured like [[],[],[]] -> flatten
+    if any(isinstance(item, list) for item in metagraph): 
+        flattened_metagraph = list(chain(*metagraph))
+    else:
+        flattened_metagraph = metagraph
 
     track_candidates = []
 
@@ -51,22 +57,43 @@ def get_all_track_candidates(metagraph_path):
 
         track_candidates.append(largest_set)
 
-    #Save the track candidates
-    save_data_to_hdf5(track_candidates, metagraph_path.replace('.h5', '_track_candidates.h5'))
+    save_to_hdf5(track_candidates, config['output_dir'] + 'track_candidates.h5')
 
-def save_data_to_hdf5(metagraph, file_name):
-    with h5py.File(file_name, 'w') as f:
-        for i, sublist in enumerate(metagraph):
-            # Convert each set to a tuple (or list) to store in HDF5
-            sublist_data = [tuple(s) for s in sublist]
-            f.create_dataset(f'sublist_{i}', data=sublist_data)
+def produce_longest_track_candidate(flattened_metagraph):
+    longest_track_candidate = max(flattened_metagraph, key=len)
+    flattened_metagraph = [s for s in flattened_metagraph if s != longest_track_candidate and s.isdisjoint(longest_track_candidate)]
 
-def load_metagraph_from_hdf5(file_path):
-    metagraph = []
-    with h5py.File(file_path, 'r') as f:
-        for key in f.keys():
-            sublist_data = f[key][:]
-            # Convert each tuple back to a set
-            sublist = [set(s) for s in sublist_data]
-            metagraph.append(sublist)
-    return metagraph
+    return longest_track_candidate, flattened_metagraph
+
+def save_to_hdf5(sets_list, filename="sets_efficient.h5"):
+    """
+    Save a list of sets to a hdf5 file using a flat array with index offsets.
+    """
+    
+    # Convert sets to sorted lists (ensures consistency in representation)
+    sets_list = [sorted(s) for s in sets_list]
+
+    # Flatten all sets into a single 1D array
+    flat_data = np.concatenate(sets_list).astype(np.int64)
+
+    # Store index offsets to reconstruct sets later
+    indices = np.cumsum([0] + [len(s) for s in sets_list])
+
+    # Save to HDF5
+    with h5py.File(filename, "w") as f:
+        f.create_dataset("data", data=flat_data, compression="gzip")   # Store elements
+        f.create_dataset("indices", data=indices, compression="gzip")  # Store offsets
+
+def load_from_hdf5(filename="sets_efficient.h5"):
+    """
+    Load a list of sets stored efficiently in an HDF5 file.
+    """
+    
+    with h5py.File(filename, "r") as f:
+        flat_data = f["data"][:]
+        indices = f["indices"][:]
+    
+    # Reconstruct sets using index offsets
+    sets_list = [set(flat_data[indices[i]:indices[i+1]]) for i in range(len(indices) - 1)]
+    
+    return sets_list
