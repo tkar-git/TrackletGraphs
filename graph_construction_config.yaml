@@ -1,0 +1,14 @@
+stage_dir: /home/mue/karres/git/TrackletGraphs/testing_stuff/pyg_files/
+output_dir: /home/mue/karres/git/TrackletGraphs/testing_stuff/pyg_files/
+
+max_workers: 1
+test: True
+test_path: /mnt/data1/karres/Example_3/filter/testset/event['000021010'].pyg
+
+preprocess: True
+preprocessing_functions: ['flip_edges', 'barrel_only']
+
+filters:
+  - name: 'random'
+    prob: 0.9
+    
