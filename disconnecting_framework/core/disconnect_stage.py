@@ -4,11 +4,11 @@ import torch
 import yaml
 import glob
 import tqdm
-import h5py
 
 from itertools import chain
 from functools import partial
 from tqdm.contrib.concurrent import process_map
+from disconnecting_framework.utils.graph_construction_utils import load_from_hdf5, save_to_hdf5
 
 def main(config_file):
     print("Entered disconnect stage")
@@ -64,36 +64,3 @@ def produce_longest_track_candidate(flattened_metagraph):
     flattened_metagraph = [s for s in flattened_metagraph if s != longest_track_candidate and s.isdisjoint(longest_track_candidate)]
 
     return longest_track_candidate, flattened_metagraph
-
-def save_to_hdf5(sets_list, filename="sets_efficient.h5"):
-    """
-    Save a list of sets to a hdf5 file using a flat array with index offsets.
-    """
-    
-    # Convert sets to sorted lists (ensures consistency in representation)
-    sets_list = [sorted(s) for s in sets_list]
-
-    # Flatten all sets into a single 1D array
-    flat_data = np.concatenate(sets_list).astype(np.int64)
-
-    # Store index offsets to reconstruct sets later
-    indices = np.cumsum([0] + [len(s) for s in sets_list])
-
-    # Save to HDF5
-    with h5py.File(filename, "w") as f:
-        f.create_dataset("data", data=flat_data, compression="gzip")   # Store elements
-        f.create_dataset("indices", data=indices, compression="gzip")  # Store offsets
-
-def load_from_hdf5(filename="sets_efficient.h5"):
-    """
-    Load a list of sets stored efficiently in an HDF5 file.
-    """
-    
-    with h5py.File(filename, "r") as f:
-        flat_data = f["data"][:]
-        indices = f["indices"][:]
-    
-    # Reconstruct sets using index offsets
-    sets_list = [set(flat_data[indices[i]:indices[i+1]]) for i in range(len(indices) - 1)]
-    
-    return sets_list

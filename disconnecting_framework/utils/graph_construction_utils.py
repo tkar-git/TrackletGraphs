@@ -1,4 +1,6 @@
 import torch
+import h5py
+import numpy as np
 from torch_geometric.data import Data
 
 def add_metagraph(graph):
@@ -51,28 +53,6 @@ def flip_edges(graph):
 def remove_edges_in_layer(graph):
     raise NotImplementedError
 
-def apply_mask_to_graph(graph, mask, mask_type='node'):
-    '''
-    Removes nodes or edges from the graph based based on a mask and reindexes edge_index and track_edges if nodes are removed
-    Input: graph - pytorch geometric data object
-           mask - boolean mask for nodes or edge features
-           mask_type - 'node' or 'edge'
-    '''
-    mask_len = mask.size(0)
-    num_nodes = graph.num_nodes
-    num_edges = graph.edge_index.size(1)
-
-    assert (mask_type == 'node' and mask_len == num_nodes) or (mask_type == 'edge' and mask_len == num_edges), 'Mask length does not match number of nodes or edges'
-
-    if mask_type == 'node':
-        print('Filtering node features')
-        return filter_node_feature(graph, mask)
-    elif mask_type == 'edge':
-        print('Filtering edge features')
-        return filter_edge_feature(graph, mask)
-    else:
-        raise ValueError('Invalid mask type')
-
 def filter_node_feature(graph, mask):
     #Create a mapping from old indices to new indices
     mapping = -torch.ones(graph.hit_id.shape[0], dtype=torch.long)  # Initialize mapping
@@ -116,8 +96,24 @@ def filter_node_feature(graph, mask):
     graph.num_nodes = mask.sum() 
     return graph
 
-def filter_edge_feature(graph, mask):
-    raise NotImplementedError
+def get_incidence_matrices(edge_index, num_nodes):
+    num_edges = edge_index.shape[1]
+
+    device = edge_index.device
+    
+    B_minus = torch.sparse_coo_tensor(
+        indices=torch.stack((edge_index[0,:], torch.arange(0,num_edges, device=device))), values=torch.ones(num_edges, device=device), size=(num_nodes, num_edges), dtype=torch.float
+        )
+    B_plus = torch.sparse_coo_tensor(
+        indices=torch.stack((edge_index[1,:], torch.arange(0,num_edges, device=device))), values=torch.ones(num_edges, device=device), size=(num_nodes, num_edges), dtype=torch.float
+        )
+    return B_plus, B_minus
+
+def linegraph(graph):
+    B_plus, B_minus = get_incidence_matrices(graph.edge_index, graph.num_nodes)
+    mat = torch.sparse.mm(B_plus.transpose(0,1), B_minus)
+
+    return Data(edge_index=mat.indices(), num_nodes=graph.edge_index.shape[1], **{k: v for k, v in graph if k not in ["edge_index", "num_nodes"]})
 
 def build_truth_map(edge_index, track_edges):
     edge_index_exp = edge_index.T.unsqueeze(0)  # Shape (1, n, 2)
@@ -129,3 +125,36 @@ def build_truth_map(edge_index, track_edges):
     # Get the first matching index for each row in B, or -1 if no match
     truth_map = torch.where(matches.any(dim=1), matches.int().argmax(dim=1), torch.tensor(-1))
     return truth_map
+
+def save_to_hdf5(sets_list, filename):
+    """
+    Save a list of sets to a hdf5 file using a flat array with index offsets.
+    """
+    
+    # Convert sets to sorted lists (ensures consistency in representation)
+    sets_list = [sorted(s) for s in sets_list]
+
+    # Flatten all sets into a single 1D array
+    flat_data = np.concatenate(sets_list).astype(np.int64)
+
+    # Store index offsets to reconstruct sets later
+    indices = np.cumsum([0] + [len(s) for s in sets_list])
+
+    # Save to HDF5
+    with h5py.File(filename, "w") as f:
+        f.create_dataset("data", data=flat_data, compression="gzip")   # Store elements
+        f.create_dataset("indices", data=indices, compression="gzip")  # Store offsets
+
+def load_from_hdf5(filename):
+    """
+    Load a list of sets stored efficiently in an HDF5 file.
+    """
+    
+    with h5py.File(filename, "r") as f:
+        flat_data = f["data"][:]
+        indices = f["indices"][:]
+    
+    # Reconstruct sets using index offsets
+    sets_list = [set(flat_data[indices[i]:indices[i+1]]) for i in range(len(indices) - 1)]
+    
+    return sets_list

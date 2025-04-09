@@ -3,24 +3,24 @@ import numpy as np
 import random
 from torch_geometric.data import Data
 
-def random_filter(graph, p=0.2,seed=42):
+def random_filter(graph,p):
+    '''
+    Randomly removes p percent of edges from the graph
+    Optimized for usage on GPU
+    '''
+
     n_edges = graph.edge_index.shape[1]
+    remove_m_edges = int(n_edges*p)
+    if remove_m_edges == 0:
+        return graph
+    
+    remove_indices = torch.randperm(n_edges,device=graph.edge_index.device)[:remove_m_edges]
 
-    edge_keys = [key for key, value in graph.items() if isinstance(value, torch.Tensor) and value.dim() == 1 and value.shape[0] == n_edges]
+    mask = torch.ones(n_edges, dtype=torch.bool, device=graph.edge_index.device)
+    mask[remove_indices] = False
 
-    assert p >= 0 and p <= 1, 'p must be between 0 and 1'
-    if p > 0.5:
-        random.seed(seed)
-        keep_edges = random.sample(range(0,graph.edge_index.shape[1]),int(graph.edge_index.shape[1]*(1-p)))
-        graph.edge_index = torch.from_numpy(np.take(graph.edge_index.numpy(),keep_edges,axis=1))
-        for key in edge_keys:
-            graph[key] = torch.from_numpy(np.take(graph[key].numpy(),keep_edges,axis=0))
+    graph.edge_index = graph.edge_index[:,mask]
 
-    else:
-        random.seed(seed)
-        remove_edges = random.sample(range(0,graph.edge_index.shape[1]),int(graph.edge_index.shape[1]*p))
-        graph.edge_index = torch.from_numpy(np.delete(graph.edge_index.numpy(),remove_edges,axis=1))
-        for key in edge_keys:
-            graph[key] = torch.from_numpy(np.delete(graph[key].numpy(),remove_edges,axis=0))
+    chi2 = random.random() #assign random 0<chi2<1 for testing purposes
 
-    return graph
+    return graph, chi2
