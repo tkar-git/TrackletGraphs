@@ -4,5 +4,5 @@ output_dir: /home/mue/karres/git/TrackletGraphs/testing_stuff/pyg_files/
 max_workers: 1
 load_only_metagraph: True
 test: True
-#test_path: /home/mue/karres/git/TrackletGraphs/testing_stuff/pyg_files/odd_barrel_p50_full_linegraph.pyg
-test_path: /home/mue/karres/git/TrackletGraphs/testing_stuff/pyg_files/odd_barrel_p50_full_linegraph.h5
+test_path: /home/mue/karres/git/TrackletGraphs/testing_stuff/pyg_files/event['000021010']_metagraph.pyg
+#test_path: /home/mue/karres/git/TrackletGraphs/testing_stuff/pyg_files/example_graph_metagraph.pyg

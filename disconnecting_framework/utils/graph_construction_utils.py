@@ -10,7 +10,7 @@ def add_metagraph(graph):
     '''
     assert hasattr(graph, 'edge_index'), 'Edge index does not exist in graph'
     
-    graph.metagraph = [{graph.edge_index[0,i].item(), graph.edge_index[1,i].item()} for i in range(graph.edge_index.shape[1])]
+    graph.metagraph = [[{graph.edge_index[0,i].item(), graph.edge_index[1,i].item()} for i in range(graph.edge_index.shape[1])]]
     return graph
 
 def update_metagraph(graph):
@@ -21,13 +21,19 @@ def update_metagraph(graph):
     assert hasattr(graph, 'edge_index'), 'Edge index does not exist in graph'
 
     new_metagraph =  []
+    print("Old metagraph:", graph.metagraph)
     for tracklet in graph.edge_index.T:
-        trackletA = graph.metagraph[tracklet[0]]
-        trackletB = graph.metagraph[tracklet[1]]
+        trackletA = graph.metagraph[-1][tracklet[0]]
+        trackletB = graph.metagraph[-1][tracklet[1]]
         new_tracklet = trackletA|trackletB
         new_metagraph.append(new_tracklet)
-    graph.metagraph = new_metagraph
-    return graph
+    
+    print("New metagraph:", new_metagraph)
+    if len(new_metagraph) == 0:
+        return graph
+    else:
+        graph.metagraph.append(new_metagraph)
+        return graph
 
 def flip_edges(graph):
     '''

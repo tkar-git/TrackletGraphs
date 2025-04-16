@@ -55,16 +55,16 @@ def build_metagraph(config, path):
         graph = preprocess_graph(config, graph)
 
     graph = utils.graph_construction_utils.add_metagraph(graph)
-
+    if 'scores' in graph: 
+        del graph.scores
+        
     while graph.edge_index.shape[1] > 0:
         graph = utils.graph_construction_utils.linegraph(graph)
-        print(graph.edge_index.shape)
         graph = filter_graph(config, graph)
-        print(graph.edge_index.shape)
         graph = utils.graph_construction_utils.update_metagraph(graph)
-
+        
     #Save metagraph in hdf5 format
-    utils.graph_construction_utils.save_to_hdf5(graph.metagraph, config['output_dir'] + path.split('/')[-1].replace('.pyg', '_metagraph.h5'))
+    torch.save(graph, config['output_dir'] + path.split('/')[-1].replace('.pyg','_metagraph.pyg'))
 
 def preprocess_graph(config, graph):
     '''
@@ -72,27 +72,30 @@ def preprocess_graph(config, graph):
     '''
 
     if 'flip_edges' in config['preprocessing_functions']:
+        print("Flipping edges")
         graph = utils.graph_construction_utils.flip_edges(graph)
 
     if 'remove_edges_in_layer' in config['preprocessing_functions']:
+        print("Removing edges in layer")
         graph = utils.graph_construction_utils.remove_edges_in_layer(graph)
 
     if 'barrel_only' in config['preprocessing_functions']:
+        print("Filtering out non barrel hits")
         mask = torch.isin(graph.region, torch.tensor([3,4]))
         graph = utils.graph_construction_utils.filter_node_feature(graph, mask)
 
     return graph
-import inspect 
+
 def filter_graph(config, graph):
     '''
-    Applies the specified edge filter to the line graph
+    Applies the specified edge filter to the line graph and return a chi2 value for every edge (tracklet)
     '''
     for f in config['filters']:
         if f['name'] == 'random':
             p = f['prob']
-            print(inspect.getfile(utils.filters.random_filter))
-            graph, chi2 = utils.filters.random_filter(graph, p)
+            assert p >= 0 or p <= 1, "Probability must be between 0 and 1"
+            graph = utils.filters.random_filter(graph, p)
 
-        ### Add own filters here ### 
+        ### Add own filters here ### +
 
     return graph

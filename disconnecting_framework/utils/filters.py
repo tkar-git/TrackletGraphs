@@ -1,6 +1,5 @@
 import torch
 import numpy as np
-import random
 from torch_geometric.data import Data
 
 def random_filter(graph,p):
@@ -12,6 +11,14 @@ def random_filter(graph,p):
     n_edges = graph.edge_index.shape[1]
     remove_m_edges = int(n_edges*p)
     if remove_m_edges == 0:
+        tracklet_scores = torch.rand(graph.edge_index.shape[1]).tolist()
+        if hasattr(graph,'scores') and len(tracklet_scores) > 0:
+            graph.scores.append(tracklet_scores)
+        elif hasattr(graph,'scores') and len(tracklet_scores) == 0:
+            return graph
+        else:
+            graph.scores = [tracklet_scores]
+
         return graph
     
     remove_indices = torch.randperm(n_edges,device=graph.edge_index.device)[:remove_m_edges]
@@ -21,6 +28,14 @@ def random_filter(graph,p):
 
     graph.edge_index = graph.edge_index[:,mask]
 
-    chi2 = random.random() #assign random 0<chi2<1 for testing purposes
+    #Randomly assign score to each tracklet
+    #This is a placeholder, in the future this should be replaced
+    tracklet_scores = torch.rand(graph.edge_index.shape[1]).tolist()
 
-    return graph, chi2
+    if hasattr(graph,'scores') and graph.edge_index.shape[1] > 0:
+        graph.scores.append(tracklet_scores)
+    elif hasattr(graph,'scores') and graph.edge_index.shape[1] == 0:
+        return graph
+    else:  
+        graph.scores = [tracklet_scores]
+    return graph

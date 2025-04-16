@@ -4,6 +4,7 @@ output_dir: /home/mue/karres/git/TrackletGraphs/testing_stuff/pyg_files/
 max_workers: 1
 test: True
 test_path: /mnt/data1/karres/Example_3/filter/testset/event['000021010'].pyg
+#test_path: '/home/mue/karres/git/TrackletGraphs/testing_stuff/pyg_files/example_graph.pyg'
 
 preprocess: True
 preprocessing_functions: ['flip_edges', 'barrel_only']

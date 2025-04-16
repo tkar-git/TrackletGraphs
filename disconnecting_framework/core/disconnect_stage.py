@@ -1,4 +1,3 @@
-
 import numpy as np
 import torch
 import yaml
@@ -35,32 +34,53 @@ def main(config_file):
         for path in tqdm(paths, desc=f'Producing track candidate list'):
             get_all_track_candidates(config, path)
 
-def get_all_track_candidates(config, path):
-    #Check if metagraph is stored in hdf5 format and load as such, else get from pyg file
-    if config['load_only_metagraph']:
-        metagraph = load_from_hdf5(path)
-    else:
-        metagraph = torch.load(path).metagraph
-        metagraph_path = path.replace('.pyg', '.h5')
-        save_to_hdf5(metagraph, metagraph_path)
+def get_all_track_candidates(config, path):  
+    graph = torch.load(path)
+    metagraph = graph.metagraph
+    scores = graph.scores
 
-    #If metagraph is structured like [[],[],[]] -> flatten
-    if any(isinstance(item, list) for item in metagraph): 
-        flattened_metagraph = list(chain(*metagraph))
-    else:
-        flattened_metagraph = metagraph
+    #Metagraph and scores are structured like [[],[],[]] with longest tracklists sublist being the last
 
     track_candidates = []
 
-    while flattened_metagraph:
-        largest_set, flattened_metagraph = produce_longest_track_candidate(flattened_metagraph)
+    while metagraph:
+        #Find longest tracklet with highest score
+        best_tracklet_index = max(range(len(scores[-1])), key=scores[-1].__getitem__)
+        best_tracklet = metagraph[-1][best_tracklet_index]
+        track_candidates.append(best_tracklet)
 
-        track_candidates.append(largest_set)
+        #Flatten first for easier tracklet removal
+        flat_metagraph = list(chain(*metagraph))
+        flat_scores = list(chain(*scores))
+        print("Flat metagraph:",flat_metagraph)
 
+        #Remove all tracklets with non-zero intersection and their scores from the metagraph
+        mask = [not (best_tracklet & s) for s in flat_metagraph]
+        new_metagraph = [s for s, m in zip(flat_metagraph, mask) if m]
+        new_scores = [s for s, m in zip(flat_scores, mask) if m]
+        print("New metagraph:",new_metagraph)
+
+        #Restore original structure [[],[],...]
+        metagraph, scores = regroup_by_set_size(new_metagraph, new_scores)
+    print("Track candidates:",track_candidates)
     save_to_hdf5(track_candidates, config['output_dir'] + 'track_candidates.h5')
 
-def produce_longest_track_candidate(flattened_metagraph):
-    longest_track_candidate = max(flattened_metagraph, key=len)
-    flattened_metagraph = [s for s in flattened_metagraph if s != longest_track_candidate and s.isdisjoint(longest_track_candidate)]
+def regroup_by_set_size(sets, scores):
+    # Create a list of sublists indexed by set size - 1
+    size_to_sets = {}
+    size_to_scores = {}
 
-    return longest_track_candidate, flattened_metagraph
+    for s, sc in zip(sets, scores):
+        size = len(s)
+        if size not in size_to_sets:
+            size_to_sets[size] = []
+            size_to_scores[size] = []
+        size_to_sets[size].append(s)
+        size_to_scores[size].append(sc)
+
+    # Sort by set size to maintain original order (smallest to largest)
+    sizes_sorted = sorted(size_to_sets)
+    regrouped_sets = [size_to_sets[size] for size in sizes_sorted]
+    regrouped_scores = [size_to_scores[size] for size in sizes_sorted]
+    
+    return regrouped_sets, regrouped_scores
